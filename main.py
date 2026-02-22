@@ -16,6 +16,8 @@ collection = db["students"]
 class Student(BaseModel):
     name: str
     marks: float
+class UpdateStudent(BaseModel):
+    marks: float
 
 @app.post("/students")
 async def insert_student(student: Student):
@@ -42,13 +44,18 @@ async def get_student_by_name(name:str):
       raise HTTPException(status_code=404, detail="Student not found, Name is incorrect or the student does not exist")
 
 @app.put("/students/{name}")
-async def update_student_marks(name:str,marks:int):
-    updateMarks = await collection.update_one({"name": name}, {"$set": {"marks": marks}})
-    if updateMarks.modified_count > 0:        return {"status": "200", "message": "Student marks updated successfully"}
+async def update_student_marks(name: str, student: UpdateStudent):
+    # name comes from URL path
+    # marks comes from request body
+    updateMarks = await collection.update_one(
+        {"name": name}, 
+        {"$set": {"marks": student.marks}}
+    )
+    if updateMarks.modified_count > 0:
+        return {"status": "200", "message": "Student marks updated successfully"}
     # return {"status": "404", "message": "Student not found or marks already updated"}
     raise HTTPException(status_code=404, detail="Student not found or marks already updated")
 
-    
 @app.delete("/students/{name}")
 async def delete_by_name(name:str):
     delete_stdnt = await collection.delete_one({"name":name})
