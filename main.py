@@ -32,3 +32,5 @@ async def get_all_students():
 async def get_filtered_students():
     # Find with filter
     return await collection.find({"marks": {"$gte": 60}}, {"_id": 0}).to_list(100)
+
+# new api here
