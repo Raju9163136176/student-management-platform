@@ -1,5 +1,5 @@
 from fastapi import FastAPI,HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel,Field, validator
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
@@ -14,10 +14,10 @@ db = client["student_db"]
 collection = db["students"]
 
 class Student(BaseModel):
-    name: str
-    marks: float
+    name: str = Field(..., min_length=2, max_length=50)
+    marks: float = Field(..., ge=0, le=100)
 class UpdateStudent(BaseModel):
-    marks: float
+    marks: float = Field(..., ge=0, le=100)
 
 @app.post("/students")
 async def insert_student(student: Student):
