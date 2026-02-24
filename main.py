@@ -6,6 +6,7 @@ import os
 
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
+print(f"MONGO_URL: {MONGO_URL}")  # add this line
 app = FastAPI()
 
 # MONGO_URL = "mongodb+srv://mailmeraju92_db_user:Test1234@cluster0.yha1ztq.mongodb.net/"

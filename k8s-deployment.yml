@@ -20,7 +20,10 @@ spec:
         - containerPort: 8000
         env:
         - name: MONGO_URL
-          value: "mongodb+srv://mailmeraju92_db_user:Test1234@cluster0.yha1ztq.mongodb.net/"
+          valueFrom:
+            secretKeyRef:
+              name: student-api-secret
+              key: MONGO_URL
 ---
 apiVersion: v1
 kind: Service
