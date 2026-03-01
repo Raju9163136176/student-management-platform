@@ -3,6 +3,10 @@ from pydantic import BaseModel,Field, validator
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
+from models import user
+from models.user import Student, UpdateStudent, User
+import bcrypt
+
 
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
@@ -13,18 +17,36 @@ app = FastAPI()
 client = AsyncIOMotorClient(MONGO_URL)
 db = client["student_db"]
 collection = db["students"]
+users_collection  = db["users"]
 
-class Student(BaseModel):
-    name: str = Field(..., min_length=2, max_length=50)
-    marks: float = Field(..., ge=0, le=100)
-class UpdateStudent(BaseModel):
-    marks: float = Field(..., ge=0, le=100)
+@app.post("/auth/register")
+async def insert_user(user: User):
+    # Insert
+    if await users_collection.find_one({"username": user.username}):
+        raise HTTPException(status_code=400, detail="Username already exists")
+   
+    # Hash password:
+    hashed_password = bcrypt.hashpw(user.password.encode('utf-8'), bcrypt.gensalt())
+    
+    # Store hashed password, not plain text
+    await users_collection.insert_one({
+        "username": user.username,
+        "password": hashed_password.decode('utf-8')  # never store plain text
+    })
+    return {"message": "User registered successfully"}
 
 @app.post("/students")
 async def insert_student(student: Student):
     # Insert
     await collection.insert_one(student.dict())
     return {"message": "Student inserted"}
+
+
+# @app.post("/students")
+# async def insert_student(student: Student):
+#     # Insert
+#     await collection.insert_one(student.dict())
+#     return {"message": "Student inserted"}
 
 @app.get("/allstudents")
 async def get_all_students():
