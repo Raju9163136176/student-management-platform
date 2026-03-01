@@ -3,13 +3,19 @@ from pydantic import BaseModel,Field, validator
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
-from models import user
 from models.user import Student, UpdateStudent, User
 import bcrypt
-
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends
 
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+
 print(f"MONGO_URL: {MONGO_URL}")  # add this line
 app = FastAPI()
 
@@ -18,9 +24,48 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client["student_db"]
 collection = db["students"]
 users_collection  = db["users"]
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+# Create token
+def create_token(username: str):
+    expire = datetime.utcnow() + timedelta(minutes=30)
+    payload = {
+        "sub": username,
+        "exp": expire
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+
+@app.get("/protected")
+async def protected_route(username: str = Depends(verify_token)):
+    return {"message": f"Hello {username}, you are authenticated"}
+
+@app.post("/auth/login")
+async def login(user:User):
+    db_user = await users_collection.find_one({"username":user.username})
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Invalid user name")
+    if bcrypt.checkpw(user.password.encode("utf-8"),db_user['password'].encode('utf-8')):
+        token =create_token(user.username)
+        return {"access_token":token, "token_type":"bearer","message": "User logged in successfully"}
+    else: raise HTTPException(status_code=401, detail="Invalid password or username")
+
 
 @app.post("/auth/register")
-async def insert_user(user: User):
+async def insert_user(user: User):  
     # Insert
     if await users_collection.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -40,13 +85,6 @@ async def insert_student(student: Student):
     # Insert
     await collection.insert_one(student.dict())
     return {"message": "Student inserted"}
-
-
-# @app.post("/students")
-# async def insert_student(student: Student):
-#     # Insert
-#     await collection.insert_one(student.dict())
-#     return {"message": "Student inserted"}
 
 @app.get("/allstudents")
 async def get_all_students():
@@ -86,4 +124,5 @@ async def delete_by_name(name:str):
         return {"status": "200", "message": "Student deleted successfully"}
     # return {"status": "404", "message": "Student not found"}
     raise HTTPException(status_code=404, detail="Student not found")
+
 
