@@ -92,31 +92,36 @@ async def insert_user(user: User):
     return {"message": "User registered successfully"}
 
 @app.post("/students")
-async def insert_student(student: Student, username: str = Depends(verify_token)):
+@limiter.limit("10/minute")
+async def insert_student(request: Request,student: Student, username: str = Depends(verify_token)):
     # Insert
     await collection.insert_one(student.model_dump())
     return {"message": f"Student inserted by {username}"}
 
 @app.get("/allstudents")
-async def get_all_students(username: str = Depends(verify_token)):
+@limiter.limit("110/minute")
+async def get_all_students(request: Request, username: str = Depends(verify_token)):
     # Find all
     return await collection.find({}, {"_id": 0}).to_list(100)
 
 @app.get("/students/filtered")
-async def get_filtered_students(username: str = Depends(verify_token)):
+@limiter.limit("150/minute")
+async def get_filtered_students(request: Request, username: str = Depends(verify_token)):
     # Find with filter
     return await collection.find({"marks": {"$gte": 60}}, {"_id": 0}).to_list(100)
 
 # new api here
 @app.get("/students/{name}")
-async def get_student_by_name(name:str,username: str = Depends(verify_token)):
+@limiter.limit("150/minute")
+async def get_student_by_name(request: Request , name:str,username: str = Depends(verify_token)):
       studentName = await collection.find({"name": name},{"_id":0}).to_list(100)
       if studentName:
           return studentName
       raise HTTPException(status_code=404, detail="Student not found, Name is incorrect or the student does not exist")
 
 @app.put("/students/{name}")
-async def update_student_marks(name: str, student: UpdateStudent,username: str = Depends(verify_token)):
+@limiter.limit("150/minute")
+async def update_student_marks(request: Request, name: str, student: UpdateStudent,username: str = Depends(verify_token)):
     # name comes from URL path
     # marks comes from request body
     updateMarks = await collection.update_one(
@@ -129,7 +134,8 @@ async def update_student_marks(name: str, student: UpdateStudent,username: str =
     raise HTTPException(status_code=404, detail="Student not found or marks already updated")
 
 @app.delete("/students/{name}")
-async def delete_by_name(name:str,username: str = Depends(verify_token)):
+@limiter.limit("100/minute")
+async def delete_by_name(request: Request,name:str,username: str = Depends(verify_token)):
     delete_stdnt = await collection.delete_one({"name":name})
     if delete_stdnt.deleted_count>0:
         return {"status": "200", "message": "Student deleted successfully"}
