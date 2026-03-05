@@ -10,6 +10,12 @@ from jose import JWTError, jwt
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
+
+
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -26,6 +32,10 @@ collection = db["students"]
 users_collection  = db["users"]
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
+#rate limiting code
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Create token
 def create_token(username: str):
@@ -54,7 +64,8 @@ async def protected_route(username: str = Depends(verify_token)):
     return {"message": f"Hello {username}, you are authenticated"}
 
 @app.post("/auth/login")
-async def login(user:User):
+@limiter.limit("3/minute")
+async def login(request: Request, user: User):
     db_user = await users_collection.find_one({"username":user.username})
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid user name")
