@@ -143,3 +143,8 @@ async def delete_by_name(request: Request,name:str,username: str = Depends(verif
     raise HTTPException(status_code=404, detail="Student not found")
 
 
+@app.on_event("startup")
+async def create_indexes():
+    await collection.create_index("marks")
+    await users_collection.create_index("username", unique=True)
+    print("Indexes created")
