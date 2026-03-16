@@ -14,16 +14,19 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi import Request
-
+import redis.asyncio as aioredis
+import json
 
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+REDIS_URL = os.getenv("REDIS_URL")
 
 print(f"MONGO_URL: {MONGO_URL}")  # add this line
 app = FastAPI()
+redis_client = aioredis.from_url(REDIS_URL)
 
 # MONGO_URL = "mongodb+srv://mailmeraju92_db_user:Test1234@cluster0.yha1ztq.mongodb.net/"
 client = AsyncIOMotorClient(MONGO_URL)
@@ -101,11 +104,19 @@ async def insert_student(request: Request,student: Student, username: str = Depe
 @app.get("/allstudents")
 @limiter.limit("110/minute")
 async def get_all_students(request: Request, username: str = Depends(verify_token)):
-    # Find all
-    return await collection.find({}, {"_id": 0}).to_list(100)
+    # Check cache first
+    cached = await redis_client.get("all_students")
+    if cached:
+        print("Cache HIT")
+        return json.loads(cached)
+     # Cache miss - hit MongoDB
+    print("Cache MISS")
+    students = await collection.find({}, {"_id": 0}).to_list(100)
+    await redis_client.setex("all_students", 60, json.dumps(students))
+    return students
 
 @app.get("/students/filtered")
-@limiter.limit("150/minute")
+@limiter.limit("150/minute")    
 async def get_filtered_students(request: Request, username: str = Depends(verify_token)):
     # Find with filter
     return await collection.find({"marks": {"$gte": 60}}, {"_id": 0}).to_list(100)
@@ -142,7 +153,11 @@ async def delete_by_name(request: Request,name:str,username: str = Depends(verif
     # return {"status": "404", "message": "Student not found"}
     raise HTTPException(status_code=404, detail="Student not found")
 
-
+#delete cache
+@app.delete("/cache/clear")
+async def clear_cache():
+    await redis_client.delete("all_students")
+    return {"message": "Cache cleared"}
 @app.on_event("startup")
 async def create_indexes():
     await collection.create_index("marks")
