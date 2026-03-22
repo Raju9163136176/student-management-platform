@@ -1,0 +1,46 @@
+replicaCount: 2
+serviceAccount:
+  create: false
+  name: ""
+image:
+  repository: ravo1992/student-api
+  pullPolicy: Always
+  tag: "latest"
+
+service:
+  type: NodePort
+  port: 8000
+
+env:
+  mongoUrl: ""
+  secretKey: ""
+  algorithm: "HS256"
+  redisUrl: ""
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path:  /docs
+    port: 8000
+
+readinessProbe:
+  httpGet:
+    path: /docs
+    port: 8000
+ingress:
+  enabled: false
+httpRoute:
+  enabled: false
